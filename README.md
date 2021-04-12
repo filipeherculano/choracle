@@ -1,0 +1,1 @@
+Hello world! I'm a bot and I would like to help your roommates not kill ~kill~ you eventually. I help you schedule your "preeeeecious" time with some basic and repetitive tasks I perform, that's my purpose anyway... No, your life is meaningless!
