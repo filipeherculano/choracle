@@ -13,15 +13,14 @@ defmodule Choracle.Roomies do
   Inserts new Roomie into the database, if both week and weekend volumes
   sum are equal to the maximum volume a Roomie can take.
   """
-  @spec insert(String.t(), integer(), integer(), integer()) ::
+  @spec insert(String.t(), integer(), integer()) ::
           {:ok, Roomie.t()} | Roomie.errors()
-  def insert(name, week_vol, weekend_vol, max_load) do
+  def insert(name, week_vol, weekend_vol) do
     %Roomie{}
     |> Roomie.registration_changeset(%{
       name: name,
       weekly_volume: week_vol,
-      weekend_volume: weekend_vol,
-      max_volume: max_load
+      weekend_volume: weekend_vol
     })
     |> Repo.insert()
     |> case do

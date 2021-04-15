@@ -9,19 +9,20 @@ defmodule Choracle.Repo.Roomie do
 
   @type errors :: {:error, :not_found | :must_be_unique | :sum_not_equal | :out_of_range}
 
-  @primary_key {:name, :string, autogenerate: false}
+  @primary_key false
   schema "roomie" do
+    field :chat_id, :integer, primary_key: true
+    field :name, :string, primary_key: true
     field :weekly_volume, :integer
     field :weekend_volume, :integer
-    field :max_volume, :integer
 
     timestamps()
   end
 
   def registration_changeset(roomie, params \\ %{}) do
     roomie
-    |> cast(params, [:name, :weekly_volume, :weekend_volume, :max_volume])
-    |> validate_required([:name, :weekly_volume, :weekend_volume, :max_volume])
+    |> cast(params, [:chat_id, :name, :weekly_volume, :weekend_volume])
+    |> validate_required([:chat_id, :name, :weekly_volume, :weekend_volume])
     |> validate_format(:name, ~r/[A-Za-z]/)
     |> validate_length(:name, max: 100)
     |> unique_constraint(:name, name: :roomie_pkey)

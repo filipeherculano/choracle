@@ -28,7 +28,7 @@ defmodule ChoracleWeb.Controller.RoomieController do
   ** Information inside parameters are optional
   """
 
-  @behaviour ChoracleWeb.Controller.WebhookHandlerController
+  @behaviour WebhookHandlerController
 
   @commands [
     "create_roomie",
