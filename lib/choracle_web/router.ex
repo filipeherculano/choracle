@@ -5,8 +5,10 @@ defmodule ChoracleWeb.Router do
     plug :accepts, ["json"]
   end
 
-  scope "/api", ChoracleWeb do
+  scope "/", ChoracleWeb do
     pipe_through :api
+
+    post "/", Controller.WebhookHandlerController, :handle
   end
 
   # Enables LiveDashboard only for development
