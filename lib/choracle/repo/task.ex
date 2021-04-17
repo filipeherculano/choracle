@@ -3,7 +3,8 @@ defmodule Choracle.Repo.Task do
 
   use Ecto.Schema
 
-  alias Choracle.Repo.Choracle
+  alias Choracle.Repo.Choracle, as: ChoracleAlias
+  alias Choracle.Repo.Roomie
 
   import Ecto.Changeset
 
@@ -11,10 +12,10 @@ defmodule Choracle.Repo.Task do
 
   @primary_key false
   schema "task" do
-    field :name, :string, primary_key: false
+    field :name, :string, primary_key: true
     field :period, :integer
-    belongs_to :choracle, Choracle, references: :chat_id
-    has_one :roomie, Roomie, references: :name
+    belongs_to :choracle, ChoracleAlias, foreign_key: :chat_id, references: :chat_id
+    belongs_to :last_worker, Roomie, foreign_key: :last_worker_name, references: :name
 
     timestamps()
   end

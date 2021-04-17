@@ -3,21 +3,23 @@ defmodule Choracle.Repo.Roomie do
 
   use Ecto.Schema
 
-  alias Choracle.Repo.Choracle
+  alias Choracle.Repo.Choracle, as: ChoracleAlias
+  alias Choracle.Repo.Task
 
   import Ecto.Changeset
 
   require Logger
 
-  @type errors :: {:error, :not_found | :must_be_unique | :sum_not_equal | :out_of_range}
+  @type validation_errors :: {:error, :name_must_be_unique, :name_length, :name_format}
+  @type errors :: {:error, :out_of_range} | validation_errors()
 
   @primary_key false
   schema "roomie" do
     field :name, :string, primary_key: true
     field :weekly_volume, :integer
     field :weekend_volume, :integer
-    belongs_to :choracle, Choracle, references: :chat_id
-    belongs_to :task, Task, references: :name
+    belongs_to :choracle, ChoracleAlias, foreign_key: :chat_id, references: :chat_id
+    has_many :tasks, Task, foreign_key: :last_worker_name, references: :name
 
     timestamps()
   end
@@ -40,18 +42,12 @@ defmodule Choracle.Repo.Roomie do
     roomie = %__MODULE__{name: name}
 
     roomie
-    |> cast(params, [:weekly_volume, :weekend_volume, :max_volume])
-    |> check_constraint(:max_volume, opts(:volumes_sum_must_equal_max_volume))
+    |> cast(params, [:weekly_volume, :weekend_volume])
     |> put_change(:updated_at, now)
   end
 
   def handle_errors(%{errors: [error | _]}) do
     case error do
-      {:max_volume,
-       {msg, [constraint: :check, constraint_name: "volumes_sum_must_equal_max_volume"]}} ->
-        Logger.error(msg)
-        {:error, :sum_not_equal}
-
       {:name, {msg, opts}} ->
         Logger.error(msg)
 
