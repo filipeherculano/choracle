@@ -1,6 +1,6 @@
-defmodule Choracle.Roomies do
+defmodule Choracle.Repo.Manager.Roomies do
   @moduledoc """
-  This modules handles every operation on the `roomie` table.
+  This modules manages every operation on the `roomie` table.
   """
   @moduledoc since: "0.1.0"
 
@@ -13,15 +13,15 @@ defmodule Choracle.Roomies do
   Inserts new Roomie into the database, if both week and weekend volumes
   sum are equal to the maximum volume a Roomie can take.
   """
-  @spec insert(String.t(), integer(), integer(), integer()) ::
+  @spec insert(non_neg_integer, String.t(), integer(), integer()) ::
           {:ok, Roomie.t()} | Roomie.errors()
-  def insert(name, week_vol, weekend_vol, max_load) do
+  def insert(chat_id, name, week_vol, weekend_vol) do
     %Roomie{}
     |> Roomie.registration_changeset(%{
+      chat_id: chat_id,
       name: name,
       weekly_volume: week_vol,
-      weekend_volume: weekend_vol,
-      max_volume: max_load
+      weekend_volume: weekend_vol
     })
     |> Repo.insert()
     |> case do

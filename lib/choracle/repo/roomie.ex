@@ -3,30 +3,32 @@ defmodule Choracle.Repo.Roomie do
 
   use Ecto.Schema
 
+  alias Choracle.Repo.Choracle
+
   import Ecto.Changeset
 
   require Logger
 
   @type errors :: {:error, :not_found | :must_be_unique | :sum_not_equal | :out_of_range}
 
-  @primary_key {:name, :string, autogenerate: false}
+  @primary_key false
   schema "roomie" do
+    field :name, :string, primary_key: true
     field :weekly_volume, :integer
     field :weekend_volume, :integer
-    field :max_volume, :integer
+    belongs_to :choracle, Choracle, references: :chat_id
+    belongs_to :task, Task, references: :name
 
     timestamps()
   end
 
   def registration_changeset(roomie, params \\ %{}) do
     roomie
-    |> cast(params, [:name, :weekly_volume, :weekend_volume, :max_volume])
-    |> validate_required([:name, :weekly_volume, :weekend_volume, :max_volume])
+    |> cast(params, [:name, :weekly_volume, :weekend_volume])
+    |> validate_required([:name, :weekly_volume, :weekend_volume])
     |> validate_format(:name, ~r/[A-Za-z]/)
     |> validate_length(:name, max: 100)
     |> unique_constraint(:name, name: :roomie_pkey)
-    |> check_constraint(:max_volume, opts(:volumes_sum_must_equal_max_volume))
-    |> check_constraint(:max_volume, opts(:max_volume_ranges))
     |> check_constraint(:weekly_volume, opts(:weekly_volume_ranges))
     |> check_constraint(:weekend_volume, opts(:weekend_volume_ranges))
   end
@@ -69,18 +71,9 @@ defmodule Choracle.Repo.Roomie do
     end
   end
 
-  defp opts(:volumes_sum_must_equal_max_volume = constraint),
-    do: [
-      name: constraint,
-      message: "Max volume must be equal to the sum of weekly and weekend volumes"
-    ]
-
   defp opts(:weekly_volume_ranges = constraint),
     do: [name: constraint, message: "Weekly volume must be positive and no more than 100"]
 
   defp opts(:weekend_volume_ranges = constraint),
     do: [name: constraint, message: "Weekend volume must be positive and no more than 100"]
-
-  defp opts(:max_volume_ranges = constraint),
-    do: [name: constraint, message: "Maximum volume must be positive and no more than 100"]
 end
