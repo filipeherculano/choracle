@@ -1,14 +1,19 @@
 defmodule ChoracleWeb.Controller.WebhookHandlerController do
   @moduledoc """
   This module handles Telegram POST resquests and redirects them to specific
-  parsers only if the message follows the Choracle command protocol.
+  parsers only if the message follows the Choracle.Cmd structure.
+
+  In order to ease parsers creation we must follow the WebhookHandlerController
+  behaviour. With it, the parses can be used to create cmds and send them to our
+  main module.
   """
 
   use ChoracleWeb, :controller
 
   import Plug.Conn
 
-  alias Choracle.Parser.Roomie
+  alias Choracle.Parser.Roomie, as: RoomieParser
+  alias Choracle.Repo.Roomie
 
   require Logger
 
@@ -48,18 +53,19 @@ defmodule ChoracleWeb.Controller.WebhookHandlerController do
   """
 
   # NOTE: Add any new parser here
-  @parsers [Roomie]
+  @parsers [RoomieParser]
 
   # NOTE: New parsers must implement those callbacks
-  @callback commands() :: String.t()
-  @callback handle_response({:ok, Choracle.Cmd.t()} | {:error, atom()}) :: String.t()
+  @callback commands() :: list(String.t())
+  @callback handle_response({:ok, %Roomie{}} | Roomie.errors() | {:error, :not_found}) ::
+              String.t()
   @callback help() :: String.t()
-  @callback parse(String.t(), non_neg_integer) :: {:ok, map()} | {:error, any()}
+  @callback parse(String.t(), non_neg_integer) :: {:ok, Choracle.Cmd.t()} | {:error, any()}
 
   def help(), do: @help
 
   # To be ignored by Cmd
-  def parse(_, _), do: %Cmd{}
+  def parse(_, _), do: %{}
 
   def handle(
         conn,
@@ -109,22 +115,18 @@ defmodule ChoracleWeb.Controller.WebhookHandlerController do
     ["/" <> cmd | _] = String.split(text, " ")
     parser = find_parser(cmd)
 
-    parser
-    |> apply(:parse, [text, chat_id])
+    text
+    |> parser.parse(chat_id)
     |> Choracle.run_cmd()
     |> parser.handle_response()
     |> send_ok(conn, chat_id)
   end
 
-  defp dispatch_cmd(%module{}, conn, text, chat_id) do
-    text
-    |> module.handle(chat_id)
-    |> send_ok(conn, chat_id)
-  end
-
   defp find_parser(cmd) do
     @parsers
-    |> Enum.reduce(%{}, fn parser, acc -> parser.commands() |> Enum.into(%{}, &{&1, parser}) |> Map.merge(acc) end)
+    |> Enum.reduce(%{}, fn parser, acc ->
+      parser.commands() |> Enum.into(%{}, &{&1, parser}) |> Map.merge(acc)
+    end)
     |> Map.get(cmd)
     |> case do
       nil ->

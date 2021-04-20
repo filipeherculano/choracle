@@ -1,3 +1,3 @@
 defmodule Choracle.Repo.Manager.Choracle do
-  # TODO
+  # TODO make Choracle Manager
 end

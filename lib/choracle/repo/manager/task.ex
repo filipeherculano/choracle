@@ -1,3 +1,3 @@
 defmodule Choracle.Repo.Manager.Task do
-  # TODO
+  # TODO make Task manager
 end

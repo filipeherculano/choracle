@@ -1,8 +1,9 @@
 defmodule Choracle.Repo.Manager.Roomie do
   @moduledoc """
-  This modules manages every operation on the `roomie` table.
+  This modules manages every operation on the `roomie` table. Also
+  handles database errors that might come up and translate them to
+  specific Roomie.errors().
   """
-  @moduledoc since: "0.1.0"
 
   alias Choracle.Repo
   alias Choracle.Repo.Choracle, as: ChoracleAlias
@@ -10,14 +11,17 @@ defmodule Choracle.Repo.Manager.Roomie do
 
   require Logger
 
+  @type crud :: :insert | :get | :all | :delete | :update
+
   @doc """
   Inserts new Roomie into the database.
   """
   @spec insert(integer(), String.t(), integer(), integer()) ::
-          {:ok, Roomie.t()} | Roomie.errors()
+          {:ok, %Roomie{}} | Roomie.errors()
   def insert(chat_id, name, week_vol, weekend_vol) do
     params = %{name: name, weekly_volume: week_vol, weekend_volume: weekend_vol}
 
+    # TODO use library once built
     with choracle <- Repo.get(ChoracleAlias, chat_id),
          {:ok, %Roomie{name: name} = roomie} <-
            choracle
@@ -38,7 +42,7 @@ defmodule Choracle.Repo.Manager.Roomie do
   @doc """
   Deletes a already existing Roomie.
   """
-  @spec delete(String.t()) :: {:ok, Roomie.t()} | Roomie.errors()
+  @spec delete(String.t()) :: {:ok, %Roomie{}} | Roomie.errors()
   def delete(name) do
     name
     |> Roomie.delete_changeset()
@@ -59,7 +63,7 @@ defmodule Choracle.Repo.Manager.Roomie do
   @doc """
   Updates existing Roomie information
   """
-  @spec update(String.t(), map()) :: {:ok, Roomie.t()} | Roomie.errors()
+  @spec update(String.t(), map()) :: {:ok, %Roomie{}} | Roomie.errors()
   def update(name, params) do
     name
     |> Roomie.update_changeset(params)
@@ -77,7 +81,10 @@ defmodule Choracle.Repo.Manager.Roomie do
       {:error, :not_found}
   end
 
-  @spec get(String.t()) :: Roomie.t() | {:error, :not_found}
+  @doc """
+  Get a user by it's name.
+  """
+  @spec get(String.t()) :: %Roomie{} | {:error, :not_found}
   def get(name) do
     case Repo.get(Roomie, name) do
       nil ->
@@ -90,7 +97,10 @@ defmodule Choracle.Repo.Manager.Roomie do
     end
   end
 
-  @spec all() :: list(Roomie.t())
+  @doc """
+  Get all users names.
+  """
+  @spec all() :: list(%Roomie{})
   def all() do
     Repo.all(Roomie)
   end
