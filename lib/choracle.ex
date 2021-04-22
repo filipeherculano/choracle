@@ -5,78 +5,141 @@ defmodule Choracle do
   """
 
   alias Choracle.Parser.Roomie, as: RoomieParser
+  alias Choracle.Repo
   alias Choracle.Repo.Manager.Roomie, as: RoomieManager
   alias Choracle.Repo.Roomie
+
+  # TODO this should be removed in the future. Query logic must reamin in repo managers
+  import Ecto.Query
 
   # NOTE If this module becames too large we could refactor it by removing the Cmd
   defmodule Cmd do
     @moduledoc false
 
-    @type crud :: :create | :read | :update | :delete
     @type t :: %{
-            args: RoomieParser.t() | list(any()),
-            cmd: crud() | RoomieManager.crud(),
-            table_manager: RoomieManager,
-            type: nil | :all | :get,
-            response: any()
+            args: list(any()) | nil,
+            cmd: Roomie.crud() | nil,
+            digest: RoomieParser.t(),
+            response: any() | nil
           }
 
     defstruct args: nil,
               cmd: nil,
-              table_manager: nil,
-              type: nil,
+              digest: nil,
               response: nil
   end
 
-  @spec run_cmd({:ok, Cmd.t()} | {:error, any()}) ::
-          {:ok, %Roomie{}} | Roomie.errors() | {:error, :not_found}
-  def run_cmd({:ok, %Cmd{table_manager: table_manager} = cmd_origin}) do
-    %Cmd{cmd: cmd, args: args} = cmd_parse(cmd_origin)
+  @type errors ::
+          RoomieManager.errors()
+          | {:error, :volumes_sum_must_equal_max_volume | :choracle_not_found}
 
-    case apply(table_manager, cmd, args) do
-      {:ok, response} ->
-        {:ok, %{cmd_origin | response: response}}
-
-      error ->
+  @spec run_cmd(Cmd.t()) :: {:ok, %Roomie{}} | errors()
+  def run_cmd(%Cmd{digest: %RoomieParser{table_manager: table_manager}} = cmd_struct) do
+    with {:ok, %Cmd{cmd: cmd, args: args} = cmd_struct} <- cmd_parse(cmd_struct),
+         {:ok, response} <- apply(table_manager, cmd, args) do
+      {:ok, %Cmd{cmd_struct | response: response}}
+    else
+      {:error, _} = error ->
         error
     end
   end
 
-  def run_cmd(error), do: error
+  defp cmd_parse(
+         %Cmd{
+           digest: %RoomieParser{
+             cmd: :create,
+             parsed_params: %RoomieParser.ParsedParams{
+               chat_id: chat_id,
+               name: name,
+               weekend_volume: wknd,
+               weekly_volume: wk
+             }
+           }
+         } = cmd
+       ) do
+    # TODO use library once created, like:
+    # max_volume = ChoracleManager.fetch_max_volume(chat_id)
+    case Repo.all(from c in Repo.Choracle, where: [chat_id: ^chat_id]) do
+      [%Repo.Choracle{max_volume: max_volume}] ->
+        if max_volume == wk + wknd do
+          {:ok, %Cmd{cmd | cmd: :insert, args: [chat_id, name, wk, wknd]}}
+        else
+          {:error, :volumes_sum_must_equal_max_volume}
+        end
+
+      [] ->
+        {:error, :choracle_not_found}
+    end
+  end
 
   defp cmd_parse(
          %Cmd{
-           table_manager: RoomieManager,
-           cmd: :create,
-           args: %{chat_id: chat_id, name: name, week_load: wk, weekend_load: wknd}
+           digest: %RoomieParser{
+             cmd: :read,
+             parsed_params: %RoomieParser.ParsedParams{chat_id: chat_id},
+             type: :all
+           }
          } = cmd
        ) do
-    %Cmd{cmd | cmd: :insert, args: [chat_id, name, wk, wknd]}
-  end
-
-  defp cmd_parse(%Cmd{table_manager: RoomieManager, cmd: :read, type: :all} = cmd) do
-    %Cmd{cmd | cmd: :all, args: []}
+    {:ok, %Cmd{cmd | cmd: :get_all, args: [chat_id]}}
   end
 
   defp cmd_parse(
-         %Cmd{table_manager: RoomieManager, cmd: :read, type: :get, args: %{name: name}} = cmd
+         %Cmd{
+           digest: %RoomieParser{
+             cmd: :read,
+             parsed_params: %RoomieParser.ParsedParams{chat_id: chat_id, name: name},
+             type: :one
+           }
+         } = cmd
        ) do
-    %Cmd{cmd | cmd: :get, args: [name]}
+    {:ok, %Cmd{cmd | cmd: :get_one, args: [chat_id, name]}}
   end
 
-  defp cmd_parse(%Cmd{table_manager: RoomieManager, cmd: :update, args: params} = cmd) do
-    wk = params[:weekly_load]
-    wknd = params[:weekend_load]
+  defp cmd_parse(
+         %Cmd{
+           digest: %RoomieParser{
+             cmd: :update,
+             parsed_params:
+               %RoomieParser.ParsedParams{chat_id: chat_id, name: name} = parsed_params
+           }
+         } = cmd
+       ) do
+    # TODO use library once created, like:
+    # max_volume = ChoracleManager.fetch_max_volume(chat_id)
+    case Repo.all(from c in Repo.Choracle, where: [chat_id: ^chat_id]) do
+      [%Repo.Choracle{max_volume: max_volume}] ->
+        wk = Map.get(parsed_params, :weekly_volume)
+        wknd = Map.get(parsed_params, :weekend_volume)
 
-    params =
-      %{weekly_load: wk, weekend_load: wknd}
-      |> Enum.filter(fn {_k, v} -> is_nil(v) end)
-      |> Enum.into(%{}, & &1)
+        params =
+          %{weekly_volume: wk, weekend_volume: wknd}
+          |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+          |> Enum.into(%{}, & &1)
 
-    %Cmd{cmd | args: [params]}
+        sum = params |> Map.values() |> Enum.sum()
+
+        if sum == max_volume do
+          {:ok, %Cmd{cmd | cmd: :update, args: [chat_id, name, params]}}
+        else
+          {:error, :volumes_sum_must_equal_max_volume}
+        end
+
+      [] ->
+        {:error, :not_found}
+    end
   end
 
-  defp cmd_parse(%Cmd{table_manager: RoomieManager, cmd: :delete, args: %{name: name}} = cmd) do
-    %Cmd{cmd | args: [name]}
+  defp cmd_parse(
+         %Cmd{
+           digest: %RoomieParser{
+             cmd: :delete,
+             parsed_params: %RoomieParser.ParsedParams{chat_id: chat_id, name: name}
+           }
+         } = cmd
+       ) do
+    {:ok, %Cmd{cmd | cmd: :delete, args: [chat_id, name]}}
   end
+
+  defp cmd_parse(_), do: {:error, :unknown_command}
 end

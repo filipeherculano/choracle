@@ -60,7 +60,8 @@ defmodule Choracle.Repo.Roomie do
         Logger.error(msg)
         {:error, :name_must_be_unique}
 
-      _ ->
+      {_, {msg, _opts}} ->
+        Logger.error(msg)
         {:error, :out_of_range}
     end
   end

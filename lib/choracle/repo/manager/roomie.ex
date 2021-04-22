@@ -13,7 +13,7 @@ defmodule Choracle.Repo.Manager.Roomie do
 
   require Logger
 
-  @type errors :: {:error, :not_found} | Roomie.errors()
+  @type errors :: Roomie.errors() | {:error, :not_found | :choracle_not_found}
   @type crud :: :insert | :get_all | :get_one | :delete | :update
 
   @doc """
@@ -38,9 +38,9 @@ defmodule Choracle.Repo.Manager.Roomie do
         Roomie.handle_errors(changeset)
     end
   rescue
-    # For choracle unknown
     _ ->
-      {:error, :not_found}
+      Logger.error("Failed to insert Roomie. Choracle with chat_id: #{chat_id} not found")
+      {:error, :choracle_not_found}
   end
 
   @doc """
@@ -63,6 +63,7 @@ defmodule Choracle.Repo.Manager.Roomie do
     end
   rescue
     _ ->
+      Logger.error("Roomie does not exist")
       {:error, :not_found}
   end
 
@@ -88,6 +89,7 @@ defmodule Choracle.Repo.Manager.Roomie do
     end
   rescue
     _ ->
+      Logger.error("Roomie does not exist")
       {:error, :not_found}
   end
 
@@ -103,6 +105,7 @@ defmodule Choracle.Repo.Manager.Roomie do
         {:error, :not_found}
 
       [roomie] ->
+        Logger.info("Sucessfully retrieved Roomie")
         {:ok, roomie}
     end
   end
@@ -120,11 +123,11 @@ defmodule Choracle.Repo.Manager.Roomie do
     |> Repo.all()
     |> case do
       [] ->
-        Logger.error("No choracle bots found with chat_id: #{chat_id}")
-
+        Logger.error("No roomies found on chat_id: #{chat_id}")
         {:error, :not_found}
 
       [%ChoracleAlias{roomies: roomies}] ->
+        Logger.info("Sucessfully retrieved Roomies")
         {:ok, roomies}
     end
   end

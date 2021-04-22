@@ -18,35 +18,30 @@ defmodule ChoracleWeb.Controller.WebhookHandlerController do
   require Logger
 
   @help """
-    > Hello,
+    Hello, My name is Choracle and I would like to introduce myself and explain stuff that I can do. \
+    I can help you schedule cleaning routines by distributing volumes of chores on all roommates. To start \
+    you must first call /init_choracle and provide the desired maximum. The maximum volume represents the \
+    volume within a weeks period of 7 days, given that 1 task = 1 volume. After the step above you can start \
+    managing roomies and tasks and we do the rest for you.
 
-    > My name is Choracle and I would like to introduce myself and explain stuff that I can do.
+    [TBI] /init_choracle      - Begins choracle mediation.
+    [TBI] /set_maximum_volume - Sets maximum agreeable volume across all Roomies.
+    [TBI] /complete_task      - Records a complete Task
 
-    > I can help you schedule cleaning routines by distributing volumes of chores on all roommates.
+    [BETA] /create_roomie      - Creates a new Roomie
+    [BETA] /get_roomie_details - Get details about a Roomie
+    [BETA] /list_all_roomies   - List all Roomies in this chat
+    [BETA] /update_roomie      - Update a Roomie
+    [BETA] /delete_roomie      - Delete a Roomie
 
-    > To start you must first call /init_choracle and provide the desired maximum. The maximum volume
-    represents the volume within a weeks period of 7 days, given that 1 task = 1 volume.
-
-    > After the step above you can start managing roomies and tasks and we do the rest for you.
-
-    [not implemented] /init_choracle      - Begins choracle mediation.
-    [not implemented] /set_maximum_volume - Sets maximum agreeable volume across all Roomies.
-    [not implemented] /complete_task      - Records a complete Task
-
-    [not implemented] /create_roomie      - Creates a new Roomie
-    [not implemented] /get_roomie_details - Get details about a Roomie
-    [not implemented] /list_all_roomies   - List all Roomies in this chat
-    [not implemented] /update_roomie      - Update a Roomie
-    [not implemented] /delete_roomie      - Delete a Roomie
-
-    [not implemented] /create_task        - Creates a new Task
-    [not implemented] /get_task_details   - Get details about a Task
-    [not implemented] /list_all_tasks     - List all Task in this chat
-    [not implemented] /update_task        - Update a Task
-    [not implemented] /delete_task        - Delete a Task
+    [TBI] /create_task        - Creates a new Task
+    [TBI] /get_task_details   - Get details about a Task
+    [TBI] /list_all_tasks     - List all Task in this chat
+    [TBI] /update_task        - Update a Task
+    [TBI] /delete_task        - Delete a Task
 
     **WARNING**: This will erase all information for this chat (roomies, tasks, records, history).
-    /kill_choracle - If you want to start all things over.
+    [TBI] /kill_choracle - If you want to start all things over.
 
     For more information on each command format, try to calling it with /{command} help. Everyone
     in this chat has permissions to edit the choracle bot and also kill it.
@@ -60,12 +55,10 @@ defmodule ChoracleWeb.Controller.WebhookHandlerController do
   @callback handle_response({:ok, %Roomie{}} | Roomie.errors() | {:error, :not_found}) ::
               String.t()
   @callback help() :: String.t()
-  @callback parse(String.t(), non_neg_integer) :: {:ok, Choracle.Cmd.t()} | {:error, any()}
+  @callback parse(String.t(), String.t(), non_neg_integer) :: {:ok, Choracle.Cmd.t()} | RoomieParser.error()
 
   def help(), do: @help
-
-  # To be ignored by Cmd
-  def parse(_, _), do: %{}
+  def parse(_, _, _), do: {:ok, :help}
 
   def handle(
         conn,
@@ -80,43 +73,35 @@ defmodule ChoracleWeb.Controller.WebhookHandlerController do
       ) do
     Logger.info("Received command from #{first_name} #{last_name} on chat #{chat_id}")
 
-    check = fn text ->
-      splitted = text |> String.split(" ")
+    ["/" <> cmd | params] = text |> String.split(" ", parts: 2)
+    params = List.first(params) || ""
+    parser = find_parser(cmd)
 
-      if length(splitted) > 1 do
-        ["/" <> cmd | ["help" | _]] = splitted
-        "/help #{cmd}"
-      else
-        text
+    input =
+      cmd
+      |> parser.parse(params, chat_id)
+      |> case do
+        {:ok, :help} ->
+          ["help", %{}]
+
+        {:ok, parsed_cmd} ->
+          [cmd, parsed_cmd]
+
+        {:error, :wrong_format} ->
+          ["help", cmd]
       end
-    end
 
-    handle(conn, check.(text), chat_id)
+    handle(conn, input, parser, chat_id)
   end
 
   def handle(conn, _params), do: ok(conn)
 
-  defp handle(conn, "", chat_id),
-    do:
-      send_ok(
-        "I'm sorry but this function is not supported or does not exist. For more information call /help",
-        conn,
-        chat_id
-      )
+  defp handle(conn, ["help",  _], parser, chat_id), do: send_ok(parser, conn, chat_id)
 
-  defp handle(conn, "/help" <> cmd, chat_id) do
-    cmd
-    |> String.replace(" ", "")
-    |> find_parser()
-    |> send_ok(conn, chat_id)
-  end
-
-  defp handle(conn, text, chat_id) do
-    ["/" <> cmd | _] = String.split(text, " ")
-    parser = find_parser(cmd)
-
-    text
-    |> parser.parse(chat_id)
+  defp handle(conn, [_cmd, parsed_cmd], parser, chat_id) do
+    Choracle.Cmd
+    |> struct()
+    |> Map.put(:digest, parsed_cmd)
     |> Choracle.run_cmd()
     |> parser.handle_response()
     |> send_ok(conn, chat_id)

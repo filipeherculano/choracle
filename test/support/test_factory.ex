@@ -1,10 +1,12 @@
 defmodule Choracle.Factory do
+  @moduledoc false
+
   alias Choracle.Repo
 
   # API
 
-  def build!(:setup) do
-    choracle1 = build!(:choracle, 1, 5)
+  def build!(:setup, chat_id \\ 1) do
+    choracle1 = build!(:choracle, chat_id, 5)
     mr_slacker = build!(:roomie, choracle1, "Mr. Slacker", 1, 4)
     mr_clean = build!(:roomie, choracle1, "Mr. Clean", 4, 1)
     # build!(:task, 1 ...)
