@@ -10,12 +10,11 @@ defmodule Choracle.Repo.Task do
 
   require Logger
 
-  @primary_key false
   schema "task" do
-    field :name, :string, primary_key: true
+    field :name, :string
     field :period, :integer
+    field :last_worker, :string
     belongs_to :choracle, ChoracleAlias, foreign_key: :chat_id, references: :chat_id
-    belongs_to :last_worker, Roomie, foreign_key: :last_worker_name, references: :name
 
     timestamps()
   end

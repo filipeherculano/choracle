@@ -2,8 +2,8 @@ defmodule Choracle.Repo.Migrations.AddRoomieTable do
   use Ecto.Migration
 
   def up do
-    create table(:roomie, primary_key: false) do
-      add :name, :string, size: 100, primary_key: true
+    create table(:roomie) do
+      add :name, :string, size: 100
       add :weekly_volume, :integer, null: false
       add :weekend_volume, :integer, null: false
 

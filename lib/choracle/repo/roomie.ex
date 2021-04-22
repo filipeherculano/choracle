@@ -4,57 +4,51 @@ defmodule Choracle.Repo.Roomie do
   use Ecto.Schema
 
   alias Choracle.Repo.Choracle, as: ChoracleAlias
-  alias Choracle.Repo.Task
 
   import Ecto.Changeset
 
   require Logger
 
-  @type validation_errors :: {:error, :name_must_be_unique, :name_length, :name_format}
-  @type errors :: {:error, :out_of_range} | validation_errors()
+  @type errors :: {:error, :out_of_range | :name_must_be_unique | :name_length | :name_format}
 
-  @primary_key false
   schema "roomie" do
-    field :name, :string, primary_key: true
+    field :name, :string
     field :weekly_volume, :integer
     field :weekend_volume, :integer
     belongs_to :choracle, ChoracleAlias, foreign_key: :chat_id, references: :chat_id
-    has_many :tasks, Task, foreign_key: :last_worker_name, references: :name
 
     timestamps()
   end
 
-  def registration_changeset(roomie, params \\ %{}) do
+  @spec registration_changeset(%__MODULE__{}, map()) :: Changeset.t()
+  def registration_changeset(roomie, params) do
     roomie
-    |> cast(params, [:name, :weekly_volume, :weekend_volume])
-    |> validate_required([:name, :weekly_volume, :weekend_volume])
+    |> cast(params, [:chat_id, :name, :weekly_volume, :weekend_volume])
+    |> validate_required([:chat_id, :name, :weekly_volume, :weekend_volume])
     |> validate_format(:name, ~r/[A-Za-z]/)
     |> validate_length(:name, max: 100)
-    |> unique_constraint(:name, name: :roomie_pkey)
+    |> unique_constraint([:chat_id, :name], opts(:roomie_chat_id_name_index))
     |> check_constraint(:weekly_volume, opts(:weekly_volume_ranges))
     |> check_constraint(:weekend_volume, opts(:weekend_volume_ranges))
   end
 
-  def delete_changeset(name), do: cast(%__MODULE__{name: name}, %{}, [])
+  @spec delete_changeset(%__MODULE__{}) :: Changeset.t()
+  def delete_changeset(roomie), do: validate_required(roomie, [:chat_id, :name])
 
-  def update_changeset(name, params \\ %{}) do
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-    roomie = %__MODULE__{name: name}
-
+  @spec update_changeset(%__MODULE__{}, map()) :: Changeset.t()
+  def update_changeset(roomie, params) do
     roomie
-    |> cast(params, [:weekly_volume, :weekend_volume])
-    |> put_change(:updated_at, now)
+    |> cast(params, [:chat_id, :name, :weekly_volume, :weekend_volume])
+    |> validate_required([:chat_id, :name])
   end
 
+  @spec handle_errors(map()) :: errors()
   def handle_errors(%{errors: [error | _]}) do
     case error do
       {:name, {msg, opts}} ->
         Logger.error(msg)
 
         case opts[:validation] do
-          nil ->
-            {:error, :name_must_be_unique}
-
           :length ->
             {:error, :name_length}
 
@@ -62,10 +56,20 @@ defmodule Choracle.Repo.Roomie do
             {:error, :name_format}
         end
 
+      {:chat_id, {msg, _opts}} ->
+        Logger.error(msg)
+        {:error, :name_must_be_unique}
+
       _ ->
         {:error, :out_of_range}
     end
   end
+
+  defp opts(:roomie_chat_id_name_index = constraint),
+    do: [
+      name: constraint,
+      message: "Cannot insert two roomies with the same name under the same chat"
+    ]
 
   defp opts(:weekly_volume_ranges = constraint),
     do: [name: constraint, message: "Weekly volume must be positive and no more than 100"]

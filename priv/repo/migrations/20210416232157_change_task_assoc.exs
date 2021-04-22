@@ -3,8 +3,8 @@ defmodule Choracle.Repo.Migrations.ChangeTaskAssoc do
 
   def change do
     alter table(:task) do
-      add :chat_id, references(:choracle, type: :integer, column: :chat_id)
-      add :last_worker, references(:roomie, type: :string, column: :name)
+      add :chat_id,
+          references(:choracle, type: :integer, column: :chat_id, on_delete: :delete_all)
     end
   end
 end
