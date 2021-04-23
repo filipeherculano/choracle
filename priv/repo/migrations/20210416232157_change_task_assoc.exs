@@ -1,0 +1,10 @@
+defmodule Choracle.Repo.Migrations.ChangeTaskAssoc do
+  use Ecto.Migration
+
+  def change do
+    alter table(:task) do
+      add :chat_id,
+          references(:choracle, type: :integer, column: :chat_id, on_delete: :delete_all)
+    end
+  end
+end
